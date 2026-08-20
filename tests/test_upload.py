@@ -3,6 +3,8 @@ import urllib.request
 import json
 
 # Read the sample PDF
+
+#we open the file using rb and it is read and write
 with open("data/uploads/sample_tender.pdf", "rb") as f:
     pdf_data = f.read()
 
