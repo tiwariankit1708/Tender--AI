@@ -1,8 +1,11 @@
+import os
 from pathlib import Path
 
 import pymupdf
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.services import chunker
 
 app = FastAPI(title="Tender AI API")
 
@@ -66,19 +69,34 @@ def extract_text_from_pdf(pdf_path):
 # --- Day 2: PDF upload endpoint ---
 @app.post("/upload/tender")
 async def upload_tender(file: UploadFile = File(...)):
-    """
-    Accepts a PDF file upload, saves it to data/uploads/,
-    extracts text page by page using PyMuPDF, and returns
-    the extracted content as JSON.
-    """
-    pdf_path = UPLOAD_DIR / file.filename
-
-    with open(pdf_path, "wb") as buffer:
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+        
+    # 1. Save the file temporarily
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
-
-    result = extract_text_from_pdf(pdf_path)
-
+        
+    # 2. Extract Text (Day 2)
+    try:
+        extraction_result = extract_text_from_pdf(file_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read PDF: {str(e)}")
+        
+    # 3. Chunk the Text (Day 3)
+    # Map "page_number" -> "page" so the chunker gets the key it expects
+    doc_id = file.filename  # Using filename as a simple doc_id for now
+    pages_for_chunker = [
+        {"page": p["page_number"], "text": p["text"]}
+        for p in extraction_result["pages"]
+    ]
+    chunks = chunker.chunk_extracted_pages(pages_for_chunker, doc_id=doc_id)
+    
+    # Return some stats and the first 3 chunks to verify
     return {
-        "filename": file.filename,
-        **result,
+        "message": "Tender processed and chunked successfully",
+        "document_id": doc_id,
+        "total_pages": extraction_result["page_count"],
+        "total_chunks": len(chunks),
+        "sample_chunks": chunks[:3]  # Show the first 3 chunks as proof
     }
