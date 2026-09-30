@@ -36,7 +36,7 @@ function App() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/upload/tender", {
+      const res = await fetch("http://127.0.0.1:8000/ingest/tender", {
         method: "POST",
         body: formData,
       });
