@@ -7,8 +7,12 @@ from langchain_core.documents import Document
 from app.services import vectorstore
 from app.services import chunker
 from app.services import retriever
+from app.routers.chat import router as chat_router
 
 app = FastAPI(title="Tender AI API")
+
+# --- Day 6: LLM chat router ---
+app.include_router(chat_router)
 
 # --- CORS middleware (from Day 1) ---
 app.add_middleware(
