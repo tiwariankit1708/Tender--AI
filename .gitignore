@@ -1,10 +1,23 @@
+# Environment & Secrets
+.env
+.env.*
+*.env
+backend/.env
+
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 .venv/
+backend/.venv/
 venv/
-.env
+
+# Vector DB & Uploads
+chroma_db/
+**/chroma_db/
+uploads/
+**/uploads/
 
 # Testing
 .pytest_cache/

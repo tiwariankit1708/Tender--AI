@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Union
 
 
 class LLMError(Exception):
@@ -8,7 +8,7 @@ class LLMError(Exception):
 
 
 class BaseLLM(ABC):
-    """Contract that every LLM provider must implement."""
+    """Every LLM backend implements this contract, so the rest of the app never cares which model is used."""
 
     @property
     @abstractmethod
@@ -19,12 +19,15 @@ class BaseLLM(ABC):
     @abstractmethod
     def generate(
         self,
-        prompt: str,
-        system: Optional[str] = None,
+        messages: Union[list[dict], str, None] = None,
         temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         json_mode: bool = False,
+        *,
+        prompt: Optional[str] = None,
+        system: Optional[str] = None,
     ) -> str:
-        """Send a prompt and return the model's text reply."""
+        """Generate response from messages or prompt."""
         ...
 
     @abstractmethod

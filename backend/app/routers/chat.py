@@ -1,46 +1,36 @@
-from typing import Optional
-
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from app.services.llm import get_llm, LLMError
 
-from app.services.llm import LLMError, get_llm
-
-router = APIRouter(prefix="/llm", tags=["LLM"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-# ---------- Schemas ----------
 class ChatRequest(BaseModel):
-    prompt: str
-    system: Optional[str] = None
-    temperature: Optional[float] = None
-    json_mode: bool = False
+    message: str = ""
+    prompt: str = ""  # backwards compatibility
+    system: str | None = "You are a helpful assistant for government tender analysis."
 
 
-class ChatResponse(BaseModel):
-    model: str
-    reply: str
-
-
-# ---------- Endpoints ----------
-@router.get("/health")
-def llm_health():
-    """Quick check: can we reach the configured model?"""
-    llm = get_llm()
-    return {"model": llm.model_name, "available": llm.is_available()}
-
-
-@router.post("/chat", response_model=ChatResponse)
-def chat(body: ChatRequest):
-    """Send a prompt to the LLM and return its reply."""
-    llm = get_llm()
+@router.post("")
+def chat(req: ChatRequest):
+    user_text = req.message or req.prompt
+    if not user_text:
+        raise HTTPException(400, "Message cannot be empty")
+    messages = []
+    if req.system:
+        messages.append({"role": "system", "content": req.system})
+    messages.append({"role": "user", "content": user_text})
     try:
-        reply = llm.generate(
-            prompt=body.prompt,
-            system=body.system,
-            temperature=body.temperature,
-            json_mode=body.json_mode,
-        )
+        reply = get_llm().generate(messages)
+        return {
+            "answer": reply,
+            "reply": reply,
+            "model": getattr(get_llm(), "model_name", "llm"),
+        }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, f"LLM error {e.response.status_code}: {e.response.text[:300]}")
+    except httpx.RequestError as e:
+        raise HTTPException(504, f"Could not reach LLM: {e}")
     except LLMError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-    return ChatResponse(model=llm.model_name, reply=reply)
+        raise HTTPException(502, str(e))

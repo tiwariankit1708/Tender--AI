@@ -1,31 +1,35 @@
-from typing import Optional
+from typing import Optional, Union
 
 import httpx
 
+from app.core.config import settings
 from app.services.llm.base import BaseLLM, LLMError
 
 
 class APILLM(BaseLLM):
-    """Any OpenAI-compatible hosted API (Groq, Hugging Face, OpenRouter...)."""
+    """Talks to any OpenAI-compatible /chat/completions endpoint (HF router, Ollama, vLLM...)."""
 
     def __init__(
         self,
-        base_url: str,
-        api_key: str,
-        model: str,
-        default_temperature: float = 0.1,
-        max_tokens: int = 1024,
-        timeout: float = 60,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        default_temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
     ):
-        if not api_key:
-            raise LLMError("LLM_API_KEY is empty. Add your key to backend/.env")
-
-        self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self._model = model
-        self.default_temperature = default_temperature
-        self.max_tokens = max_tokens
-        self.timeout = timeout
+        self.base_url = (base_url or settings.llm_base_url).rstrip("/")
+        self.api_key = api_key if api_key is not None else settings.llm_api_key
+        self._model = model or settings.llm_model
+        self.default_temperature = (
+            default_temperature
+            if default_temperature is not None
+            else settings.llm_temperature
+        )
+        self.max_tokens = (
+            max_tokens if max_tokens is not None else settings.llm_max_tokens
+        )
+        self.timeout = timeout if timeout is not None else settings.llm_timeout
 
     @property
     def model_name(self) -> str:
@@ -40,15 +44,24 @@ class APILLM(BaseLLM):
 
     def generate(
         self,
-        prompt: str,
-        system: Optional[str] = None,
+        messages: Union[list[dict], str, None] = None,
         temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         json_mode: bool = False,
+        *,
+        prompt: Optional[str] = None,
+        system: Optional[str] = None,
     ) -> str:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+        if isinstance(messages, str):
+            prompt = messages
+            messages = None
+
+        if messages is None:
+            messages = []
+            if system:
+                messages.append({"role": "system", "content": system})
+            if prompt:
+                messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": self._model,
@@ -56,7 +69,7 @@ class APILLM(BaseLLM):
             "temperature": (
                 self.default_temperature if temperature is None else temperature
             ),
-            "max_tokens": self.max_tokens,
+            "max_tokens": max_tokens or self.max_tokens,
         }
 
         if json_mode:

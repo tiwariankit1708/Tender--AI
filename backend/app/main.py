@@ -7,12 +7,14 @@ from langchain_core.documents import Document
 from app.services import vectorstore
 from app.services import chunker
 from app.services import retriever
-from app.routers.chat import router as chat_router
+from app.routers import chat, criteria, evaluation
 
 app = FastAPI(title="Tender AI API")
 
-# --- Day 6: LLM chat router ---
-app.include_router(chat_router)
+# --- Day 6, 7 & 9: LLM chat, criteria & evaluation routers ---
+app.include_router(chat.router)
+app.include_router(criteria.router)
+app.include_router(evaluation.router)
 
 # --- CORS middleware (from Day 1) ---
 app.add_middleware(
@@ -157,6 +159,53 @@ async def ingest_tender(file: UploadFile = File(...)):
         "document_id": doc_id,
         "total_chunks": len(chunks),
         "total_pages": extraction_result["page_count"]
+    }
+
+
+# --- Day 8 & 9: Ingest bidder submission into 'bidders' collection ---
+@app.post("/ingest/bidder")
+async def ingest_bidder(file: UploadFile = File(...)):
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+
+    file_path = os.path.join(UPLOAD_DIR, f"temp_{file.filename}")
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+
+    extraction_result = extract_text_from_pdf(file_path)
+    doc_id = file.filename
+    pages_for_chunker = [
+        {"page": p["page_number"], "text": p["text"]}
+        for p in extraction_result["pages"]
+    ]
+    chunks = chunker.chunk_extracted_pages(pages_for_chunker, doc_id=doc_id)
+
+    try:
+        vector_store = vectorstore.get_vector_store(collection_name="bidders")
+        documents = [
+            Document(
+                page_content=c["text"],
+                metadata={
+                    "chunk_id": c["chunk_id"],
+                    "document_id": c["document_id"],
+                    "page": c["page"],
+                    "chunk_index": c["chunk_index"],
+                },
+            )
+            for c in chunks
+        ]
+        vector_store.add_documents(documents)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Vector store error: {str(e)}")
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    return {
+        "message": "Bidder submission successfully ingested and vectorized",
+        "document_id": doc_id,
+        "total_chunks": len(chunks),
+        "total_pages": extraction_result["page_count"],
     }
 
 
