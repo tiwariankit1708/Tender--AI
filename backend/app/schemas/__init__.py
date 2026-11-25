@@ -8,6 +8,14 @@ from app.schemas.evaluation import (
     BatchEvaluateRequest,
     BatchEvaluationResult,
 )
+from app.schemas.audit import (
+    AuditVerdict,
+    AuditIssueType,
+    AuditRecord,
+    AuditSingleRequest,
+    BatchAuditRequest,
+    BatchAuditResult,
+)
 
 __all__ = [
     "Category",
@@ -20,4 +28,10 @@ __all__ = [
     "EvaluateCriterionRequest",
     "BatchEvaluateRequest",
     "BatchEvaluationResult",
+    "AuditVerdict",
+    "AuditIssueType",
+    "AuditRecord",
+    "AuditSingleRequest",
+    "BatchAuditRequest",
+    "BatchAuditResult",
 ]
